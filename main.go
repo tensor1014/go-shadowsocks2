@@ -94,7 +94,7 @@ func main() {
 			}
 		}
 
-		udpAddr := addr
+		//udpAddr := addr
 
 		ciph, err := core.PickCipher(cipher, key, password)
 		if err != nil {
@@ -111,7 +111,7 @@ func main() {
 		if flags.UDPTun != "" {
 			for _, tun := range strings.Split(flags.UDPTun, ",") {
 				p := strings.Split(tun, "=")
-				go udpLocal(p[0], udpAddr, p[1], ciph.PacketConn)
+				go udpLocal(p[0], addr, p[1], ciph.PacketConn)
 			}
 		}
 
@@ -126,7 +126,7 @@ func main() {
 			socks.UDPEnabled = flags.UDPSocks
 			go socksLocal(flags.Socks, addr, ciph.StreamConn)
 			if flags.UDPSocks {
-				go udpSocksLocal(flags.Socks, udpAddr, ciph.PacketConn)
+				go udpSocksLocal(flags.Socks, addr, ciph.PacketConn)
 			}
 		}
 
@@ -152,7 +152,7 @@ func main() {
 			}
 		}
 
-		udpAddr := addr
+		//udpAddr := addr
 
 		if flags.Plugin != "" {
 			addr, err = startPlugin(flags.Plugin, flags.PluginOpts, addr, true)
@@ -166,7 +166,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		go udpRemote(udpAddr, ciph.PacketConn)
+		go udpRemote(addr, ciph.PacketConn)
 		go tcpRemote(addr, ciph.StreamConn)
 	}
 

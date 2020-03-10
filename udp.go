@@ -48,6 +48,11 @@ func udpLocal(laddr, server, target string, shadow func(net.PacketConn) net.Pack
 
 	logf("UDP tunnel %s <-> %s <-> %s", laddr, server, target)
 	for {
+		/*
+			+----------+
+			|   DATA   |
+			+----------+
+		*/
 		n, raddr, err := c.ReadFrom(buf[len(tgt):])
 		if err != nil {
 			logf("UDP local read error: %v", err)
@@ -65,7 +70,11 @@ func udpLocal(laddr, server, target string, shadow func(net.PacketConn) net.Pack
 			pc = shadow(pc)
 			nm.Add(raddr, c, pc, relayClient)
 		}
-
+		/*
+			+-----------------------------------+
+			| ATYP | DST.ADDR | DST.PORT | DATA |
+			+-----------------------------------+
+		*/
 		_, err = pc.WriteTo(buf[:len(tgt)+n], srvAddr)
 		if err != nil {
 			logf("UDP local write error: %v", err)
@@ -93,6 +102,13 @@ func udpSocksLocal(laddr, server string, shadow func(net.PacketConn) net.PacketC
 	buf := make([]byte, udpBufSize)
 
 	for {
+		/*
+			+-----+------+------+-----------+----------+-----------+
+			| RSV | FRAG | ATYP | DST.ADDR  | DST.PORT |   DATA    |
+			+------------------------------------------------------+
+			|  2  |  1   |  1   | Varialble |    2     | Variable  |
+			+-----+------+------+-----------+----------+-----------+
+		 */
 		n, raddr, err := c.ReadFrom(buf)
 		if err != nil {
 			logf("UDP local read error: %v", err)
@@ -110,7 +126,11 @@ func udpSocksLocal(laddr, server string, shadow func(net.PacketConn) net.PacketC
 			pc = shadow(pc)
 			nm.Add(raddr, c, pc, socksClient)
 		}
-
+		/*
+			+------+----------+----------+----------+
+			| ATYP | DST.ADDR | DST.PORT |   DATA   |
+			+------+----------+----------+----------+
+		 */
 		_, err = pc.WriteTo(buf[3:n], srvAddr)
 		if err != nil {
 			logf("UDP local write error: %v", err)
@@ -134,6 +154,13 @@ func udpRemote(addr string, shadow func(net.PacketConn) net.PacketConn) {
 
 	logf("listening UDP on %s", addr)
 	for {
+		/*
+			+-------+----------+----------+-----------+
+			|  ATYP | SRC.ADDR | SRC.PORT |   DATA    |
+			+-----------------------------------------+
+			|   1   | Variable |     2    | Variable  |
+			+-------+----------+----------+-----------+
+		*/
 		n, raddr, err := c.ReadFrom(buf)
 		if err != nil {
 			logf("UDP remote read error: %v", err)
@@ -164,7 +191,13 @@ func udpRemote(addr string, shadow func(net.PacketConn) net.PacketConn) {
 
 			nm.Add(raddr, c, pc, remoteServer)
 		}
-
+		/*
+		   +-----------+
+		   |   DATA    |
+		   +-----------+
+		   | Variable  |
+		  +-----------+
+		 */
 		_, err = pc.WriteTo(payload, tgtUDPAddr) // accept only UDPAddr despite the signature
 		if err != nil {
 			logf("UDP remote write error: %v", err)
@@ -236,14 +269,35 @@ func timedCopy(dst net.PacketConn, target net.Addr, src net.PacketConn, timeout 
 
 		switch role {
 		case remoteServer: // server -> client: add original packet source
+			/*
+				+-----------+         +-------+----------+----------+-----------+
+				|   DATA    |         |  ATYP | SRC.ADDR | SRC.PORT |   DATA    |
+				+-----------+ +-----> +-----------------------------------------+
+				| Variable  |         |   1   | Variable |     2    | Variable  |
+				+-----------+         +-------+----------+----------+-----------+
+			 */
 			srcAddr := socks.ParseAddr(raddr.String())
 			copy(buf[len(srcAddr):], buf[:n])
 			copy(buf, srcAddr)
 			_, err = dst.WriteTo(buf[:len(srcAddr)+n], target)
 		case relayClient: // client -> user: strip original packet source
+			/*
+				+-------+----------+----------+-----------+         +-----------+
+				|  ATYP | SRC.ADDR | SRC.PORT |   DATA    |         |   DATA    |
+				+-----------------------------------------+ +-----> +-----------+
+				|   1   | Variable |     2    | Variable  |         | Variable  |
+				+-------+----------+----------+-----------+         +-----------+
+			*/
 			srcAddr := socks.SplitAddr(buf[:n])
 			_, err = dst.WriteTo(buf[len(srcAddr):n], target)
 		case socksClient: // client -> socks5 program: just set RSV and FRAG = 0
+			/*
+				+-------+----------+----------+-----------+       +-----+------+------+-----------+----------+-----------+
+				|  ATYP | SRC.ADDR | SRC.PORT |   DATA    |       | RSV | FRAG | ATYP | SRC.ADDR  | SRC.PORT |   DATA    |
+				+-----------------------------------------+ +---> +------------------------------------------------------+
+				|   1   | Variable |     2    | Variable  |       |  2  |  1   |  1   | Varialble |    2     | Variable  |
+				+-------+----------+----------+-----------+       +-----+------+------+-----------+----------+-----------+
+			*/
 			_, err = dst.WriteTo(append([]byte{0, 0, 0}, buf[:n]...), target)
 		}
 

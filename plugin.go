@@ -102,7 +102,14 @@ func fileExists(filename string) bool {
 	return !info.IsDir()
 }
 
-func getFreePort() (string, error) {
+func getFreePort() (port string, err error) {
+	for retry := 0; (retry == 0 || err != nil) && retry < 3; retry++ {
+		port, err = getFreeTcpUdpPort()
+	}
+	return port, err
+}
+
+func getFreeTcpUdpPort() (string, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {
 		return "", err
@@ -114,5 +121,10 @@ func getFreePort() (string, error) {
 	}
 	port := fmt.Sprintf("%d", l.Addr().(*net.TCPAddr).Port)
 	l.Close()
+	l2, err := net.ListenPacket("udp", "localhost:" + port)
+	if err != nil {
+		return "", err
+	}
+	l2.Close()
 	return port, nil
 }
