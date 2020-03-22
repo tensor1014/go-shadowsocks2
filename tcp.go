@@ -3,10 +3,22 @@ package main
 import (
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/shadowsocks/go-shadowsocks2/socks"
 )
+
+var pool sync.Pool
+
+func init() {
+	pool = sync.Pool{
+		New: func () interface{} {
+			b := make([]byte, 32*1024)
+			return &b
+		},
+	}
+}
 
 // Create a SOCKS server listening on addr and proxy to server.
 func socksLocal(addr, server string, shadow func(net.Conn) net.Conn) {
@@ -147,13 +159,15 @@ func relay(left, right net.Conn) (int64, int64, error) {
 	ch := make(chan res)
 
 	go func() {
-		n, err := io.Copy(right, left)
+		buf := pool.Get().(*[]byte)
+		n, err := io.CopyBuffer(right, left, *buf)
 		right.SetDeadline(time.Now()) // wake up the other goroutine blocking on right
 		left.SetDeadline(time.Now())  // wake up the other goroutine blocking on left
 		ch <- res{n, err}
 	}()
 
-	n, err := io.Copy(left, right)
+	buf := pool.Get().(*[]byte)
+	n, err := io.CopyBuffer(left, right, *buf)
 	right.SetDeadline(time.Now()) // wake up the other goroutine blocking on right
 	left.SetDeadline(time.Now())  // wake up the other goroutine blocking on left
 	rs := <-ch
