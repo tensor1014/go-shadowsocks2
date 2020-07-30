@@ -10,7 +10,7 @@ import (
 var logger = log.New(os.Stderr, "", log.Lshortfile|log.LstdFlags)
 func init() {
 	logger.SetOutput(&lumberjack.Logger{
-		Filename:   "/var/log/myapp/foo.log",
+		Filename:   "/srv/log/ss-test/ss-test.log",
 		MaxSize:    500, // megabytes
 		MaxBackups: 4,
 		MaxAge:     30, //days
