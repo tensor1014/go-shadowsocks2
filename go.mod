@@ -3,8 +3,11 @@ module github.com/shadowsocks/go-shadowsocks2
 go 1.12
 
 require (
+	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/riobard/go-bloom v0.0.0-20200213042214-218e1707c495
 	golang.org/x/crypto v0.0.0-20200128174031-69ecbb4d6d5d
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
 
 replace (
